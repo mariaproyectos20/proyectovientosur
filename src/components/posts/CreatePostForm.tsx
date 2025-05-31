@@ -85,6 +85,8 @@ const CreatePostForm: React.FC<CreatePostFormProps> = ({ onSuccess }) => {
   const handleAudioReady = (audioUrl: string | null) => {
     setMediaUrl(audioUrl || '');
     setPostType(audioUrl ? 'audio' : 'text');
+    setShowAudioRecorder(false); // Cierra el modal de grabación y previsualización al adjuntar el audio
+    setIsRecording(false);
   };
 
   // Nuevo handler para integración con VideoRecorder
@@ -100,6 +102,7 @@ const CreatePostForm: React.FC<CreatePostFormProps> = ({ onSuccess }) => {
     setShowFileUpload(false);
     setShowVideoRecorder(false);
     setIsRecording(true);
+    if (window.navigator.vibrate) window.navigator.vibrate([50, 30, 50]);
     setTimeout(() => {
       audioRecorderRef.current?.startRecording();
     }, 50); // pequeño delay para asegurar montaje
@@ -151,6 +154,19 @@ const CreatePostForm: React.FC<CreatePostFormProps> = ({ onSuccess }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showPlusMenu]);
 
+  // Cerrar menú al hacer clic fuera (emoji picker)
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (!showEmojiPicker) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showEmojiPicker]);
+
   return (
     <div className="feed-item mb-4">
       <form onSubmit={handleSubmit}>
@@ -164,47 +180,22 @@ const CreatePostForm: React.FC<CreatePostFormProps> = ({ onSuccess }) => {
                 className="avatar-img"
               />
             </div>
-            <div className="flex-1">
-              {/* Previsualización de archivos multimedia */}
-              {previewUrl && postType === 'image' && (
-                <div className="mt-2 relative rounded-lg overflow-hidden">
-                  <img 
-                    src={previewUrl} 
-                    alt="Previsualización" 
-                    className="w-full h-auto max-h-[300px] object-cover rounded-lg"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => { setPreviewUrl(null); setMediaUrl(''); }}
-                    className="absolute top-2 right-2 bg-gray-900/70 text-white p-1 rounded-full"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-              {mediaUrl && postType === 'video' && (
-                <div className="mt-2">
-                  <video src={mediaUrl} controls className="w-full max-h-[300px] rounded-lg" />
-                </div>
-              )}
-              {audioPreviewUrl && postType === 'audio' && !isSubmitting && (
-                <div className="mt-2 flex flex-col items-start">
-                  <audio src={audioPreviewUrl} controls className="w-full" />
-                </div>
-              )}
-              {mediaUrl && postType === 'audio' && (
-                <div className="mt-2">
-                  <audio src={mediaUrl} controls className="w-full" />
-                </div>
-              )}
-              {mediaUrl && postType === 'document' && (
-                <div className="mt-2">
-                  <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">Ver documento</a>
-                </div>
-              )}
-            </div>
+            <textarea
+              placeholder={`Hola ${user?.displayName || ''} ¿Qué está pasando?`}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="flex-1 p-4 text-lg text-gray-900 dark:text-white bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm resize-none min-h-[48px] max-h-[160px] transition-all placeholder-gray-400 dark:placeholder-gray-500"
+              rows={2}
+              aria-label="Contenido de la publicación"
+              required={!mediaUrl}
+              disabled={isSubmitting}
+              style={{height: 'auto', boxShadow: '0 2px 8px 0 rgba(0,0,0,0.04)'}}
+              onInput={e => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = 'auto';
+                target.style.height = target.scrollHeight + 'px';
+              }}
+            />
           </div>
         </div>
         {/* Barra inferior tipo Telegram */}
@@ -229,25 +220,8 @@ const CreatePostForm: React.FC<CreatePostFormProps> = ({ onSuccess }) => {
           >
             <FileText className="h-5 w-5" />
           </button>
-          {/* Textarea tipo Telegram */}
-          <div className="flex-1 mx-1 relative">
-            <textarea
-              placeholder="¿Qué está pasando?"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              className="w-full p-4 text-lg text-gray-900 dark:text-white bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm resize-none min-h-[48px] max-h-[160px] transition-all placeholder-gray-400 dark:placeholder-gray-500"
-              rows={2}
-              aria-label="Contenido de la publicación"
-              required={!mediaUrl}
-              disabled={isSubmitting}
-              style={{height: 'auto', boxShadow: '0 2px 8px 0 rgba(0,0,0,0.04)'}}
-              onInput={e => {
-                const target = e.target as HTMLTextAreaElement;
-                target.style.height = 'auto';
-                target.style.height = target.scrollHeight + 'px';
-              }}
-            />
-          </div>
+          {/* Espacio flexible para empujar los botones a la derecha */}
+          <div className="flex-1" />
           {/* Botón micrófono o enviar, cambia según contenido */}
           {content.trim() || mediaUrl ? (
             <button 
@@ -263,9 +237,12 @@ const CreatePostForm: React.FC<CreatePostFormProps> = ({ onSuccess }) => {
               )}
             </button>
           ) : (
+            // 1. Animación visual del botón de micrófono
+            // Cambia el color y agrega animación de círculo creciente durante la grabación
             <button
               type="button"
-              className={`p-2 rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 ml-1 ${showAudioRecorder ? 'bg-red-200 text-red-600' : ''}`}
+              className={`relative p-2 rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 ml-1 transition-all duration-200
+                ${showAudioRecorder ? 'bg-red-200 text-red-600 ring-4 ring-red-400/30 animate-pulse' : ''}`}
               onMouseDown={handleMicPress}
               onMouseUp={handleMicRelease}
               onMouseLeave={handleMicCancel}
@@ -275,7 +252,10 @@ const CreatePostForm: React.FC<CreatePostFormProps> = ({ onSuccess }) => {
               aria-label="Grabar nota de voz"
               disabled={isSubmitting}
             >
-              <Mic className="h-5 w-5" />
+              {isRecording && (
+                <span className="absolute inset-0 rounded-full border-2 border-red-400 animate-ping" />
+              )}
+              <Mic className="h-5 w-5 relative z-10" />
             </button>
           )}
           {/* Botón cámara opcional, puedes dejarlo si lo usas mucho */}
@@ -322,7 +302,10 @@ const CreatePostForm: React.FC<CreatePostFormProps> = ({ onSuccess }) => {
         )}
         {/* Selector de emoji */}
         {showEmojiPicker && (
-          <div className="fixed left-12 bottom-8 z-50 animate-slide-down shadow-2xl rounded-2xl bg-white dark:bg-gray-900 border border-primary-200 dark:border-primary-700">
+          <div
+            ref={emojiPickerRef}
+            className="fixed left-12 bottom-8 z-50 animate-slide-down shadow-2xl rounded-2xl bg-white dark:bg-gray-900 border border-primary-200 dark:border-primary-700"
+          >
             <Picker data={data} onEmojiSelect={handleEmojiSelect} theme="auto" />
           </div>
         )}
