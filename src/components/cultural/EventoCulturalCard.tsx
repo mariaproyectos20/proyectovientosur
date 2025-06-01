@@ -3,12 +3,16 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
   Heart,
-  MoreHorizontal
+  MoreHorizontal,
+  MessageCircle,
+  Share2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../store/authStore';
 import { getUserById } from '../../store/postStore';
+import Picker from '@emoji-mart/react';
+import data from '@emoji-mart/data';
 
 interface EventoCulturalCardProps {
   event: {
@@ -44,6 +48,10 @@ const EventoCulturalCard: React.FC<EventoCulturalCardProps> = ({ event, onEdit, 
   const [commentUsers, setCommentUsers] = useState<Record<string, any>>({});
   const [likes, setLikes] = useState<string[]>([]);
   const [isCommentExpanded, setIsCommentExpanded] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [loadingComments, setLoadingComments] = useState(true);
+  const commentInputRef = React.useRef<HTMLInputElement>(null);
   const { user } = useAuthStore();
   const isCreator = user && event.userId && user.id === event.userId;
   const isLiked = user ? likes.includes(user.id) : false;
@@ -51,6 +59,7 @@ const EventoCulturalCard: React.FC<EventoCulturalCardProps> = ({ event, onEdit, 
   React.useEffect(() => {
     // Cargar comentarios y usuarios
     const fetchComments = async () => {
+      setLoadingComments(true);
       const { data } = await supabase
         .from('comentarios_evento')
         .select('*')
@@ -68,6 +77,7 @@ const EventoCulturalCard: React.FC<EventoCulturalCardProps> = ({ event, onEdit, 
         );
         setCommentUsers(userMap);
       }
+      setLoadingComments(false);
     };
     const fetchLikes = async () => {
       const { data } = await supabase
@@ -123,6 +133,62 @@ const EventoCulturalCard: React.FC<EventoCulturalCardProps> = ({ event, onEdit, 
       navigator.clipboard.writeText(window.location.origin + '/eventos/' + event.id);
       toast.success('¡Enlace copiado!');
     }
+  };
+
+  const handleComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (user && commentText.trim()) {
+      const { error } = await supabase
+        .from('comentarios_evento')
+        .insert({
+          evento_id: event.id,
+          autor_id: user.id,
+          contenido: commentText,
+          creado_en: new Date().toISOString()
+        });
+      if (!error) {
+        setCommentText('');
+        setShowEmojiPicker(false);
+        // Refrescar comentarios
+        const { data } = await supabase
+          .from('comentarios_evento')
+          .select('*')
+          .eq('evento_id', event.id)
+          .order('creado_en', { ascending: true });
+        setComments(data || []);
+        // Refrescar usuarios
+        if (data && data.length > 0) {
+          const userMap: Record<string, any> = {};
+          await Promise.all(
+            Array.from(new Set(data.map((c: any) => c.autor_id))).map(async (userId: string) => {
+              const userData = await getUserById(userId);
+              if (userData) userMap[userId] = userData;
+            })
+          );
+          setCommentUsers(userMap);
+        }
+      }
+    }
+  };
+
+  const handleEmojiSelect = (emoji: any) => {
+    if (commentInputRef.current) {
+      const input = commentInputRef.current;
+      const start = input.selectionStart || 0;
+      const end = input.selectionEnd || 0;
+      const newValue =
+        commentText.slice(0, start) +
+        (emoji.native || emoji.skins?.[0]?.native || '') +
+        commentText.slice(end);
+      setCommentText(newValue);
+      setTimeout(() => {
+        input.focus();
+        input.setSelectionRange(start + 2, start + 2);
+      }, 0);
+    } else {
+      setCommentText(commentText + (emoji.native || emoji.skins?.[0]?.native || ''));
+    }
+    setShowEmojiPicker(false);
   };
 
   return (
@@ -219,40 +285,111 @@ const EventoCulturalCard: React.FC<EventoCulturalCardProps> = ({ event, onEdit, 
           )}
         </div>
 
-        {/* Reacciones y comentarios */}
-        <div className="flex items-center space-x-6 mb-4">
-          <button onClick={handleLike} className="flex items-center space-x-1 group">
-            <Heart className={`h-5 w-5 ${isLiked ? 'text-red-500 fill-red-500' : 'text-gray-600 dark:text-gray-400 group-hover:text-red-500'}`} />
-            <span className={`text-sm ${isLiked ? 'text-red-500' : 'text-gray-600 dark:text-gray-400 group-hover:text-red-500'}`}>{likes.length}</span>
-          </button>
-          <button onClick={() => setIsCommentExpanded(!isCommentExpanded)} className="flex items-center space-x-1 group">
-            <span className="sr-only">Comentarios</span>
-            <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-primary-600">Comentarios</span>
-          </button>
+        {/* Reacciones y comentarios visual estilo PostCard */}
+        <div className="px-4 py-2 flex items-center justify-between border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/40 rounded-b-2xl">
+          <div className="flex items-center space-x-6">
+            <button onClick={handleLike} className="flex items-center space-x-1 group">
+              <Heart className={`h-5 w-5 ${isLiked ? 'text-red-500 fill-red-500' : 'text-gray-600 dark:text-gray-400 group-hover:text-red-500'}`} />
+              <span className={`text-sm ${isLiked ? 'text-red-500' : 'text-gray-600 dark:text-gray-400 group-hover:text-red-500'}`}>{likes.length}</span>
+            </button>
+            <button onClick={() => setIsCommentExpanded(!isCommentExpanded)} className="flex items-center space-x-1 group">
+              <MessageCircle className="h-5 w-5 text-gray-600 dark:text-gray-400 group-hover:text-primary-500" />
+              <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-primary-500">{comments.length}</span>
+            </button>
+            <button onClick={handleShare} className="flex items-center group" title="Compartir">
+              <Share2 className="h-5 w-5 text-gray-600 dark:text-gray-400 group-hover:text-primary-500" />
+            </button>
+          </div>
         </div>
 
-        {/* Renderizado de comentarios */}
-        {isCommentExpanded && (
-          <div className="mt-4">
-            {comments.map((comment) => {
-              const user = commentUsers[comment.autor_id];
-              return (
-                <div key={comment.id} className="flex items-start space-x-3 py-2">
-                  <img
-                    src={user?.avatar || '/default-avatar.png'}
-                    alt={user?.displayName || 'Usuario'}
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-semibold text-gray-900 dark:text-white text-sm">{user?.displayName || 'Usuario'}</span>
-                      <span className="text-xs text-gray-400">{format(new Date(comment.creado_en), 'dd MMM yyyy', { locale: es })}</span>
+        {/* Comentarios visual estilo PostCard */}
+        {((comments.length > 0) || isCommentExpanded) && (
+          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 rounded-b-xl">
+            {comments.length > 0 && (
+              <div className="mb-3 space-y-3">
+                {comments.slice(0, isCommentExpanded ? undefined : 2).map(comment => {
+                  const commentUser = commentUsers[comment.autor_id];
+                  return (
+                    <div key={comment.id} className="flex space-x-2">
+                      <div className="flex-shrink-0">
+                        <div className="avatar w-8 h-8">
+                          {loadingComments ? (
+                            <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
+                          ) : (
+                            <img
+                              src={commentUser?.avatar || '/default-avatar.png'}
+                              alt={commentUser?.displayName || 'Usuario'}
+                              className="avatar-img"
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="bg-white dark:bg-gray-900 p-2 rounded-lg">
+                          <p className="font-medium text-sm text-gray-900 dark:text-white">
+                            {loadingComments ? <span className="bg-gray-200 rounded w-16 h-3 inline-block animate-pulse" /> : commentUser?.displayName || 'Usuario'}
+                          </p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">
+                            {comment.contenido}
+                          </p>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {format(new Date(comment.creado_en), 'dd MMM yyyy', { locale: es })}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-gray-700 dark:text-gray-200 text-sm">{comment.contenido}</div>
-                  </div>
+                  );
+                })}
+                {(comments.length > 2 && !isCommentExpanded) && (
+                  <button
+                    onClick={() => setIsCommentExpanded(true)}
+                    className="text-sm text-primary-600 dark:text-primary-400 font-medium"
+                  >
+                    Ver los {comments.length} comentarios
+                  </button>
+                )}
+              </div>
+            )}
+            {user && (
+              <form onSubmit={handleComment} className="flex items-center space-x-2 relative">
+                <div className="avatar w-8 h-8">
+                  <img
+                    src={user.avatar}
+                    alt={user.displayName}
+                    className="avatar-img"
+                  />
                 </div>
-              );
-            })}
+                <input
+                  ref={commentInputRef}
+                  type="text"
+                  placeholder="Añade un comentario..."
+                  className="flex-1 bg-white dark:bg-gray-900 rounded-full px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                  onClick={() => setShowEmojiPicker((v) => !v)}
+                  aria-label="Insertar emoji"
+                  tabIndex={-1}
+                >
+                  <span role="img" aria-label="emoji">😊</span>
+                </button>
+                <button
+                  type="submit"
+                  disabled={!commentText.trim()}
+                  className="text-sm font-medium text-primary-600 dark:text-primary-400 disabled:opacity-50"
+                >
+                  Publicar
+                </button>
+                {showEmojiPicker && (
+                  <div className="absolute z-50 bottom-12 right-0">
+                    <Picker data={data} onEmojiSelect={handleEmojiSelect} theme="auto" />
+                  </div>
+                )}
+              </form>
+            )}
           </div>
         )}
       </div>
