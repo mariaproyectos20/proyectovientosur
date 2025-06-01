@@ -1,17 +1,14 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { 
-  Heart, 
-  MessageCircle, 
-  Send,
+import {
+  Heart,
   MoreHorizontal
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../store/authStore';
 import { getUserById } from '../../store/postStore';
-import { Link } from 'react-router-dom';
 
 interface EventoCulturalCardProps {
   event: {
@@ -38,11 +35,11 @@ interface EventoCulturalCardProps {
   onEdit?: () => void;
   disableCardNavigation?: boolean;
   onDeleted?: () => void;
+  onShowDetail?: () => void;
 }
 
-const EventoCulturalCard: React.FC<EventoCulturalCardProps> = ({ event, onEdit, disableCardNavigation, onDeleted }) => {
+const EventoCulturalCard: React.FC<EventoCulturalCardProps> = ({ event, onEdit, disableCardNavigation, onDeleted, onShowDetail }) => {
   const [showMenu, setShowMenu] = useState(false);
-  const [newComment, setNewComment] = useState('');
   const [comments, setComments] = useState<any[]>([]);
   const [commentUsers, setCommentUsers] = useState<Record<string, any>>({});
   const [likes, setLikes] = useState<string[]>([]);
@@ -100,30 +97,6 @@ const EventoCulturalCard: React.FC<EventoCulturalCardProps> = ({ event, onEdit, 
     }
   };
 
-  const handleAddComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newComment.trim() || !user) return;
-    try {
-      // Insertar en comentarios_evento
-      const { data, error } = await supabase
-        .from('comentarios_evento')
-        .insert({ evento_id: event.id, autor_id: user.id, contenido: newComment.trim() })
-        .select()
-        .single();
-      if (error) throw error;
-      // Obtener datos de usuario para el nuevo comentario
-      let userData = commentUsers[user.id];
-      if (!userData) {
-        userData = await getUserById(user.id);
-        setCommentUsers(prev => ({ ...prev, [user.id]: userData }));
-      }
-      setComments([...comments, data]);
-      setNewComment('');
-    } catch (error) {
-      toast.error('Error al agregar el comentario');
-    }
-  };
-
   const handleDelete = async () => {
     if (!window.confirm('¿Estás seguro de eliminar este evento?')) return;
     try {
@@ -172,54 +145,54 @@ const EventoCulturalCard: React.FC<EventoCulturalCardProps> = ({ event, onEdit, 
               {event.descripcion}
             </p>
           </div>
-        <div className="flex space-x-2 relative">
-          <button
-            type="button"
-            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-            onClick={e => { e.stopPropagation(); setShowMenu((v) => !v); }}
-            aria-label="Abrir menú"
-            data-menu="evento-menu"
-          >
-            <MoreHorizontal className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-          </button>
-          {showMenu && (
-            <div
-              className="absolute right-0 top-10 z-50 bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 min-w-[180px] animate-fade-in"
+          <div className="flex space-x-2 relative">
+            <button
+              type="button"
+              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+              onClick={e => { e.stopPropagation(); setShowMenu((v) => !v); }}
+              aria-label="Abrir menú"
+              data-menu="evento-menu"
             >
-              <ul className="py-2">
-                <li>
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => {navigator.clipboard.writeText(window.location.origin + '/eventos/' + event.id); setShowMenu(false); toast.success('¡Enlace copiado!')}}>
-                    Guardar enlace
-                  </button>
-                </li>
-                <li>
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={handleShare}>
-                    Compartir evento
-                  </button>
-                </li>
-                {isCreator && (
-                  <>
-                    <li>
-                      <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => { setShowMenu(false); onEdit && onEdit(); }}>
-                        Editar evento
-                      </button>
-                    </li>
-                    <li>
-                      <button className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-gray-800" onClick={async () => { await handleDelete(); setShowMenu(false); }}>
-                        Eliminar evento
-                      </button>
-                    </li>
-                  </>
-                )}
-                <li>
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={e => { e.stopPropagation(); setShowMenu(false); }}>
-                    Cancelar
-                  </button>
-                </li>
-              </ul>
-            </div>
-          )}
-        </div>
+              <MoreHorizontal className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            </button>
+            {showMenu && (
+              <div
+                className="absolute right-0 top-10 z-50 bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 min-w-[180px] animate-fade-in"
+              >
+                <ul className="py-2">
+                  <li>
+                    <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => {navigator.clipboard.writeText(window.location.origin + '/eventos/' + event.id); setShowMenu(false); toast.success('¡Enlace copiado!')}}>
+                      Guardar enlace
+                    </button>
+                  </li>
+                  <li>
+                    <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={handleShare}>
+                      Compartir evento
+                    </button>
+                  </li>
+                  {isCreator && (
+                    <>
+                      <li>
+                        <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => { setShowMenu(false); onEdit && onEdit(); }}>
+                          Editar evento
+                        </button>
+                      </li>
+                      <li>
+                        <button className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-gray-800" onClick={async () => { await handleDelete(); setShowMenu(false); }}>
+                          Eliminar evento
+                        </button>
+                      </li>
+                    </>
+                  )}
+                  <li>
+                    <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={e => { e.stopPropagation(); setShowMenu(false); }}>
+                      Cancelar
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Fecha y categoría */}
@@ -228,12 +201,21 @@ const EventoCulturalCard: React.FC<EventoCulturalCardProps> = ({ event, onEdit, 
             {event.categoria || event.categoria}
           </span>
           <span className="mx-2">•</span>
-          {disableCardNavigation ? (
-            <span><span className="sr-only">Fecha:</span> {format(new Date(event.fecha_inicio), 'dd MMM yyyy', { locale: es })}</span>
+          {typeof onShowDetail === 'function' && !disableCardNavigation ? (
+            <span
+              className="group hover:underline cursor-pointer text-primary-600 dark:text-primary-400 font-semibold"
+              onClick={e => {
+                e.stopPropagation();
+                onShowDetail();
+              }}
+              title="Ver detalle del evento"
+            >
+              <span className="sr-only">Fecha:</span> {format(new Date(event.fecha_inicio), 'dd MMM yyyy', { locale: es })}
+            </span>
           ) : (
-            <Link to={`/eventos/${event.id}`} className="group hover:underline">
-              <span><span className="sr-only">Fecha:</span> {format(new Date(event.fecha_inicio), 'dd MMM yyyy', { locale: es })}</span>
-            </Link>
+            <span>
+              <span className="sr-only">Fecha:</span> {format(new Date(event.fecha_inicio), 'dd MMM yyyy', { locale: es })}
+            </span>
           )}
         </div>
 
@@ -244,81 +226,29 @@ const EventoCulturalCard: React.FC<EventoCulturalCardProps> = ({ event, onEdit, 
             <span className={`text-sm ${isLiked ? 'text-red-500' : 'text-gray-600 dark:text-gray-400 group-hover:text-red-500'}`}>{likes.length}</span>
           </button>
           <button onClick={() => setIsCommentExpanded(!isCommentExpanded)} className="flex items-center space-x-1 group">
-            <MessageCircle className="h-5 w-5 text-gray-600 dark:text-gray-400 group-hover:text-primary-500" />
-            <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-primary-500">{comments.length}</span>
+            <span className="sr-only">Comentarios</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-primary-600">Comentarios</span>
           </button>
         </div>
 
-        {/* Formulario de comentario */}
-        {user && (
-          <form onSubmit={handleAddComment} className="flex items-center space-x-4 mb-4">
-            <img
-              src={user.avatar || '/default-avatar.png'}
-              alt={user.displayName || 'Usuario'}
-              className="w-10 h-10 rounded-full"
-            />
-            <input
-              type="text"
-              value={newComment}
-              onChange={e => setNewComment(e.target.value)}
-              placeholder="Escribe un comentario..."
-              className="flex-1 px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 focus:outline-none"
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:ring-2 focus:ring-primary-500 focus:outline-none"
-            >
-              <Send className="w-5 h-5 -mr-1" />
-              <span>Enviar</span>
-            </button>
-          </form>
-        )}
-
-        {/* Comentarios */}
-        {(comments.length > 0 && isCommentExpanded) && (
-          <div className="space-y-4">
-            {comments.map(comment => {
-              const isCommentAuthor = comment.autor_id === user?.id;
-              const commentUser = commentUsers[comment.autor_id];
+        {/* Renderizado de comentarios */}
+        {isCommentExpanded && (
+          <div className="mt-4">
+            {comments.map((comment) => {
+              const user = commentUsers[comment.autor_id];
               return (
-                <div key={comment.id} className="flex items-start space-x-3">
+                <div key={comment.id} className="flex items-start space-x-3 py-2">
                   <img
-                    src={commentUser?.avatar || '/default-avatar.png'}
-                    alt={commentUser?.displayName || 'Usuario'}
-                    className="w-8 h-8 rounded-full"
+                    src={user?.avatar || '/default-avatar.png'}
+                    alt={user?.displayName || 'Usuario'}
+                    className="w-8 h-8 rounded-full object-cover"
                   />
-                  <div className="flex-1 p-4 text-sm bg-gray-100 dark:bg-gray-900 rounded-lg">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="font-semibold text-gray-800 dark:text-gray-200">
-                        {commentUser?.displayName || 'Usuario'}
-                      </span>
-                      {isCommentAuthor && (
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (window.confirm('¿Deseas eliminar tu comentario?')) {
-                              const { error } = await supabase
-                                .from('comentarios_evento')
-                                .delete()
-                                .eq('id', comment.id);
-                              if (error) {
-                                toast.error('Error al eliminar el comentario');
-                              } else {
-                                setComments(comments.filter(c => c.id !== comment.id));
-                                toast.success('Comentario eliminado');
-                              }
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-500"
-                          aria-label="Eliminar comentario"
-                        >
-                          &times;
-                        </button>
-                      )}
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-semibold text-gray-900 dark:text-white text-sm">{user?.displayName || 'Usuario'}</span>
+                      <span className="text-xs text-gray-400">{format(new Date(comment.creado_en), 'dd MMM yyyy', { locale: es })}</span>
                     </div>
-                    <p className="text-gray-700 dark:text-gray-300">
-                      {comment.contenido}
-                    </p>
+                    <div className="text-gray-700 dark:text-gray-200 text-sm">{comment.contenido}</div>
                   </div>
                 </div>
               );
